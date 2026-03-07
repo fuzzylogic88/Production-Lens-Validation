@@ -300,6 +300,56 @@ void CameraControlPanel::buildUi() {
 
     auto* lensInspectionGroup = new QGroupBox("Lens Inspection");
     auto* lensInspectionLayout = new QVBoxLayout(lensInspectionGroup); lensInspectionLayout->setContentsMargins(6,6,6,6);
+
+    lens_inspection_mode_combo = new QComboBox(tab1);
+    repopulateLensInspectionModes();
+
+        // Selecting any regular mode should disable Edge Detect if it was enabled
+    connect(lens_inspection_mode_combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [this](int idx){
+        if (!currentSerialValid()) {
+            emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
+            return;
+        }
+
+        // find mode value from current data and request it
+        QVariant itemData = lens_inspection_mode_combo->itemData(idx);
+        int mode;
+        bool markerZoom = false;
+
+        // Check if data is a list (Grayscale modes) or a single int (other modes)
+        if (itemData.canConvert<QVariantList>()) {
+            QVariantList dataList = itemData.toList();
+            mode = dataList[0].toInt();
+            markerZoom = dataList[1].toBool();
+        } else {
+            mode = itemData.toInt();
+        }
+
+        onSetVideoMode(mode);
+
+        // Disable edge button and Zoom controls for incompatible modes (Segment, Object, Duplex)
+        const bool isCompatible = isEdgeDetectCompatible(mode);
+        edge_button->setEnabled(isCompatible);
+
+        // handle ROI-Zoom UI behavior
+        zoom_button->setEnabled(markerZoom);
+        zoom_slider->setEnabled(markerZoom);
+        if (!markerZoom) {
+            zoom_slider->setValue(1.0);
+        }
+
+        if (!isCompatible && edge_button->isChecked()) {
+            edge_button->setChecked(false);
+            emit edgeDetectToggled(false);
+        }
+
+        // Handle ROI marker zoom case with grayscale mode
+        emit onMarkerZoomToggled(markerZoom);
+    });
+
+    // Set initial state based on first item in combo (regular grayscale mode)
+    const int lens_inspection_initial_mode = lens_inspection_mode_combo->itemData(0).toInt();
+
     // Zoom Slider (1x to 20x)
     zoom_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
     zoom_slider->setRange(1, 20);
@@ -333,6 +383,7 @@ void CameraControlPanel::buildUi() {
     zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
     zoomLayoutW->addWidget(zoom_button);
 
+    lensInspectionLayout->addWidget(lens_inspection_mode_combo);
     lensInspectionLayout->addWidget(zoomWidget);
     v1->addWidget(lensInspectionGroup);
     v1->addStretch();
@@ -685,6 +736,39 @@ void CameraControlPanel::repopulateVideoModes()
     }
     video_mode_combo->setCurrentIndex(targetIdx);
     video_mode_combo->blockSignals(false);
+}
+
+void CameraControlPanel::repopulateLensInspectionModes()
+{
+    if (!lens_inspection_mode_combo) return;
+    const QVariant currentData = lens_inspection_mode_combo->currentData();
+    lens_inspection_mode_combo->blockSignals(true);
+    lens_inspection_mode_combo->clear();
+
+    lens_inspection_mode_combo->addItem(tr("Grayscale (No Zoom)"), QVariantList{
+        static_cast<int>(Core::GrayscaleMode),
+        false });
+    lens_inspection_mode_combo->setItemData(lens_inspection_mode_combo->count() - 1,
+        tr("8bpp camera preview"), Qt::ToolTipRole);
+
+    lens_inspection_mode_combo->addItem(tr("Grayscale with ROI Zoom"), QVariantList{
+        static_cast<int>(Core::GrayscaleMode),
+        true });
+    lens_inspection_mode_combo->setItemData(lens_inspection_mode_combo->count() - 1,
+        tr("8bpp camera preview with center/edge marker focus"), Qt::ToolTipRole);
+
+    int targetIdx = -1;
+    for (int i = 0; i < lens_inspection_mode_combo->count(); ++i) {
+        if (videoModeDataEqual(lens_inspection_mode_combo->itemData(i), currentData)) {
+            targetIdx = i;
+            break;
+        }
+    }
+    if (targetIdx < 0 && lens_inspection_mode_combo->count() > 0) {
+        targetIdx = 0;
+    }
+    lens_inspection_mode_combo->setCurrentIndex(targetIdx);
+    lens_inspection_mode_combo->blockSignals(false);
 }
 
 void CameraControlPanel::repopulateCompressionModes()

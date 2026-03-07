@@ -83,6 +83,7 @@ private:
     void updateOverlayButtonText();
     void updateSliderLabels();
     void repopulateVideoModes();
+    void repopulateLensInspectionModes();
     void repopulateCompressionModes();
 
     QPointer<CameraConnectionManager> camera_manager;
@@ -124,10 +125,11 @@ private:
     QLabel* zoom_label{ nullptr };
     QPushButton* zoom_button{ nullptr };
 
-    QCheckBox*        focus_button{nullptr};
-    bool              focusState{true};
-    QCheckBox*        focusHUD_button{nullptr};
-    bool              focusHUDState{true};
+    QCheckBox* focus_button{nullptr};
+    bool focusState{true};
+    QCheckBox* focusHUD_button{nullptr};
+    bool focusHUDState{true};
+    QComboBox* lens_inspection_mode_combo{nullptr};
 
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};
