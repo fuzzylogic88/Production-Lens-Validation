@@ -129,6 +129,8 @@ private:
     bool focusState{true};
     QCheckBox* focusHUD_button{nullptr};
     bool focusHUDState{true};
+
+    QLabel* lens_inspection_mode_label{nullptr};
     QComboBox* lens_inspection_mode_combo{nullptr};
 
     QLineEdit* quality_edit{nullptr};

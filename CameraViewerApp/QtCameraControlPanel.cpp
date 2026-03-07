@@ -197,6 +197,7 @@ void CameraControlPanel::buildUi() {
         edge_button->setEnabled(isCompatible);
 
         // handle ROI-Zoom UI behavior
+        lens_inspection_mode_combo->setEnabled(markerZoom);
         zoom_button->setEnabled(markerZoom);
         zoom_slider->setEnabled(markerZoom);
         if (!markerZoom) {
@@ -207,9 +208,6 @@ void CameraControlPanel::buildUi() {
             edge_button->setChecked(false);
             emit edgeDetectToggled(false);
         }
-
-        // Handle ROI marker zoom case with grayscale mode
-        emit onMarkerZoomToggled(markerZoom);
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -301,10 +299,12 @@ void CameraControlPanel::buildUi() {
     auto* lensInspectionGroup = new QGroupBox("Lens Inspection");
     auto* lensInspectionLayout = new QVBoxLayout(lensInspectionGroup); lensInspectionLayout->setContentsMargins(6,6,6,6);
 
+    lens_inspection_mode_label = new QLabel("Mode:", lensInspectionGroup);
+    lens_inspection_mode_label->setMaximumWidth(60);
+    lens_inspection_mode_label->setMinimumWidth(60);
     lens_inspection_mode_combo = new QComboBox(tab1);
     repopulateLensInspectionModes();
 
-        // Selecting any regular mode should disable Edge Detect if it was enabled
     connect(lens_inspection_mode_combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [this](int idx){
         if (!currentSerialValid()) {
             emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
@@ -323,24 +323,6 @@ void CameraControlPanel::buildUi() {
             markerZoom = dataList[1].toBool();
         } else {
             mode = itemData.toInt();
-        }
-
-        onSetVideoMode(mode);
-
-        // Disable edge button and Zoom controls for incompatible modes (Segment, Object, Duplex)
-        const bool isCompatible = isEdgeDetectCompatible(mode);
-        edge_button->setEnabled(isCompatible);
-
-        // handle ROI-Zoom UI behavior
-        zoom_button->setEnabled(markerZoom);
-        zoom_slider->setEnabled(markerZoom);
-        if (!markerZoom) {
-            zoom_slider->setValue(1.0);
-        }
-
-        if (!isCompatible && edge_button->isChecked()) {
-            edge_button->setChecked(false);
-            emit edgeDetectToggled(false);
         }
 
         // Handle ROI marker zoom case with grayscale mode
@@ -365,7 +347,7 @@ void CameraControlPanel::buildUi() {
         onSetZoom(false);
         });
     zoom_button = new QPushButton("Reset", lensInspectionGroup);
-    zoom_button->setProperty("primary", true);
+    zoom_button->setProperty("secondary", true);
     connect(zoom_button, &QPushButton::clicked, this, [this]() {
         zoom_slider->setValue(1.0);
     });
@@ -383,6 +365,7 @@ void CameraControlPanel::buildUi() {
     zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
     zoomLayoutW->addWidget(zoom_button);
 
+    lensInspectionLayout->addWidget(lens_inspection_mode_label);
     lensInspectionLayout->addWidget(lens_inspection_mode_combo);
     lensInspectionLayout->addWidget(zoomWidget);
     v1->addWidget(lensInspectionGroup);
@@ -705,12 +688,6 @@ void CameraControlPanel::repopulateVideoModes()
     video_mode_combo->setItemData(video_mode_combo->count() - 1,
         tr("8bpp camera preview"), Qt::ToolTipRole);
 
-    video_mode_combo->addItem(tr("Grayscale with ROI Zoom"), QVariantList{
-        static_cast<int>(Core::GrayscaleMode),
-        true });
-    video_mode_combo->setItemData(video_mode_combo->count() - 1,
-        tr("8bpp camera preview with center/edge marker focus"), Qt::ToolTipRole);
-
     video_mode_combo->addItem(tr("Object"), QVariant(static_cast<int>(Core::ObjectMode)));
     video_mode_combo->setItemData(video_mode_combo->count() - 1,
         tr("Object mode: runs detection pipeline"), Qt::ToolTipRole);
@@ -741,17 +718,18 @@ void CameraControlPanel::repopulateVideoModes()
 void CameraControlPanel::repopulateLensInspectionModes()
 {
     if (!lens_inspection_mode_combo) return;
+    if (!lens_inspection_mode_combo->isEnabled()) { emit showWarning(tr("Wrong Video Mode"), tr("Must turn on Grayscale Mode to use the zoom feature.")); return; }
     const QVariant currentData = lens_inspection_mode_combo->currentData();
     lens_inspection_mode_combo->blockSignals(true);
     lens_inspection_mode_combo->clear();
 
-    lens_inspection_mode_combo->addItem(tr("Grayscale (No Zoom)"), QVariantList{
+    lens_inspection_mode_combo->addItem(tr("No Zoom"), QVariantList{
         static_cast<int>(Core::GrayscaleMode),
         false });
     lens_inspection_mode_combo->setItemData(lens_inspection_mode_combo->count() - 1,
         tr("8bpp camera preview"), Qt::ToolTipRole);
 
-    lens_inspection_mode_combo->addItem(tr("Grayscale with ROI Zoom"), QVariantList{
+    lens_inspection_mode_combo->addItem(tr("ROI Zoom"), QVariantList{
         static_cast<int>(Core::GrayscaleMode),
         true });
     lens_inspection_mode_combo->setItemData(lens_inspection_mode_combo->count() - 1,
